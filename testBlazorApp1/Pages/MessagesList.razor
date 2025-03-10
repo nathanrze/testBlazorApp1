@@ -1,80 +1,143 @@
-﻿@code {
-    private List<Message> Messages = new()
-    {
-        new Message { Sender = "Alice", Content = "Salut !", Timestamp = DateTime.Now, Platform = "WhatsApp" },
-        new Message { Sender = "Bob", Content = "Comment ça va ?", Timestamp = DateTime.Now.AddMinutes(-5), Platform = "Telegram" }
-    };
+﻿@page "/Libros"
 
-    private Message? EditingMessage = null;
-    private string SearchPlatform = "";
+<h2>Éditeur de Livre</h2>
 
-    private void StartEditing(Message message)
-    {
-        EditingMessage = message;
-    }
+<InputFile OnChange="HandleFileSelected" />
+<p>Fichier sélectionné : @fileName</p>
 
-    private void SaveEdit()
-    {
-        EditingMessage = null;
-    }
-
-    private void DeleteMessage(Message message)
-    {
-        Messages.Remove(message);
-    }
-
-    private IEnumerable<Message> FilteredMessages => string.IsNullOrWhiteSpace(SearchPlatform)
-        ? Messages
-        : Messages.Where(m => m.Platform.Contains(SearchPlatform, StringComparison.OrdinalIgnoreCase));
+@if (messages.Any())
+{
+    <table>
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Heure</th>
+                <th>Expéditeur</th>
+                <th>Message</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var msg in messages)
+            {
+                <tr>
+                    <td>@msg.Date</td>
+                    <td>@msg.Heure</td>
+                    <td>@msg.Expediteur</td>
+                    <td>
+                        @if (msg.EnEdition)
+                        {
+                            <input @bind="msg.Contenu" />
+                        }
+                        else
+                        {
+                            @msg.Contenu
+                        }
+                    </td>
+                    <td>
+                        @if (msg.EnEdition)
+                        {
+                            <button @onclick="() => SauvegarderEdition(msg)">💾 Sauvegarder</button>
+                        }
+                        else
+                        {
+                            <button @onclick="() => EditerMessage(msg)">📝 Modifier</button>
+                        }
+                        <button @onclick="() => SupprimerMessage(msg)">❌ Supprimer</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
 }
 
-<h3>Messages Importés</h3>
+@code {
+    private string fileName = "";
+    private List<Message> messages = new();
 
-<!-- Filtre par plateforme -->
-<div class="mb-3">
-    <label>Filtrer par plateforme :</label>
-    <input @bind="SearchPlatform" class="form-control" placeholder="WhatsApp, Telegram..." />
-</div>
+    private async Task HandleFileSelected(InputFileChangeEventArgs e)
+    {
+        var file = e.File;
+        fileName = file.Name;
+        await ExtractZipAsync(file);
+    }
 
-<table class="table">
-    <thead>
-        <tr>
-            <th>Expéditeur</th>
-            <th>Contenu</th>
-            <th>Date</th>
-            <th>Plateforme</th>
-            <th>Actions</th>
-        </tr>
-    </thead>
-    <tbody>
-        @foreach (var message in FilteredMessages)
+    private async Task ExtractZipAsync(IBrowserFile file)
+    {
+        try
         {
-            <tr>
-                <td>@message.Sender</td>
-                <td>
-                    @if (EditingMessage == message)
-                    {
-                        <input @bind="message.Content" class="form-control" />
-                    }
-                    else
-                    {
-                        @message.Content
-                    }
-                </td>
-                <td>@message.Timestamp</td>
-                <td>@message.Platform</td>
-                <td>
-                    @if (EditingMessage == message)
-                    {
-                        <button class="btn btn-success" @onclick="SaveEdit">💾 Enregistrer</button>
-                    }
-                    else
-                    {
-                        <button class="btn btn-primary" @onclick="() => StartEditing(message)">✏ Modifier</button>
-                        <button class="btn btn-danger" @onclick="() => DeleteMessage(message)">🗑 Supprimer</button>
-                    }
-                </td>
-            </tr>
+            using var memoryStream = new MemoryStream();
+            await file.OpenReadStream().CopyToAsync(memoryStream);
+            memoryStream.Seek(0, SeekOrigin.Begin);
+
+            using var archive = new System.IO.Compression.ZipArchive(memoryStream, System.IO.Compression.ZipArchiveMode.Read);
+            var chatEntry = archive.Entries.FirstOrDefault(e => e.Name == "_chat.txt");
+
+            if (chatEntry != null)
+            {
+                using var reader = new StreamReader(chatEntry.Open());
+                var content = await reader.ReadToEndAsync();
+                messages = content
+                    .Split('\n')
+                    .Where(line => !string.IsNullOrWhiteSpace(line))
+                    .Select(ParseMessage)
+                    .Where(msg => msg != null)
+                    .ToList()!;
+            }
+            else
+            {
+                messages = new() { new Message { Contenu = "Erreur : _chat.txt non trouvé dans l'archive." } };
+            }
         }
-    </tbody>
-</table>
+        catch (Exception ex)
+        {
+            messages = new() { new Message { Contenu = $"Erreur lors de l'extraction : {ex.Message}" } };
+        }
+    }
+
+    private Message? ParseMessage(string line)
+    {
+        try
+        {
+            var pattern = @"\[(\d{1,2}/\d{1,2}/\d{2}) (\d{1,2}:\d{2}:\d{2})\] (.+?): (.+)";
+            var match = System.Text.RegularExpressions.Regex.Match(line, pattern);
+
+            if (match.Success)
+            {
+                return new Message
+                    {
+                        Date = match.Groups[1].Value,
+                        Heure = match.Groups[2].Value,
+                        Expediteur = match.Groups[3].Value,
+                        Contenu = match.Groups[4].Value
+                    };
+            }
+        }
+        catch { }
+        return null;
+    }
+
+    private void EditerMessage(Message msg)
+    {
+        msg.EnEdition = true;
+    }
+
+    private void SauvegarderEdition(Message msg)
+    {
+        msg.EnEdition = false;
+    }
+
+    private void SupprimerMessage(Message msg)
+    {
+        messages.Remove(msg);
+    }
+
+    private class Message
+    {
+        public string Date { get; set; } = "";
+        public string Heure { get; set; } = "";
+        public string Expediteur { get; set; } = "";
+        public string Contenu { get; set; } = "";
+        public bool EnEdition { get; set; } = false;
+    }
+}
