@@ -167,17 +167,19 @@
     {
         var archivo = e.File;
         nombreArchivo = archivo.Name;
-        await ExtraerZipAsync(archivo);
+
+        // 🔹 Augmente la taille max autorisée
+        await ExtraerZipAsync(archivo, archivo.Size);
     }
 
-    private async Task ExtraerZipAsync(IBrowserFile archivo)
+    private async Task ExtraerZipAsync(IBrowserFile archivo, long maxSize)
     {
         try
         {
             using var memoryStream = new MemoryStream();
-            await archivo.OpenReadStream().CopyToAsync(memoryStream);
-            memoryStream.Seek(0, SeekOrigin.Begin);
+            await archivo.OpenReadStream(maxAllowedSize: maxSize).CopyToAsync(memoryStream);
 
+            memoryStream.Seek(0, SeekOrigin.Begin);
             using var archive = new System.IO.Compression.ZipArchive(memoryStream, System.IO.Compression.ZipArchiveMode.Read);
             var chatEntry = archive.Entries.FirstOrDefault(e => e.Name == "_chat.txt");
 
@@ -196,14 +198,15 @@
             }
             else
             {
-                mensajes = new() { new Mensaje { Contenido = "❌ Error: _chat.txt no encontrado en el archivo." } };
+                mensajes = new() { new Mensaje { Contenido = "❌ Error: _chat.txt non trouvé." } };
             }
         }
         catch (Exception ex)
         {
-            mensajes = new() { new Mensaje { Contenido = $"❌ Error al extraer: {ex.Message}" } };
+            mensajes = new() { new Mensaje { Contenido = $"❌ Erreur lors de l'extraction : {ex.Message}" } };
         }
     }
+
 
     private Mensaje? ParsearMensaje(string linea)
     {
