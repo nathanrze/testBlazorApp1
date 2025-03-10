@@ -1,6 +1,239 @@
-﻿@page "/Libro"
+﻿@page "/Libros"
 
-<h2>Éditeur de Livre</h2>
+<h2 class="text-center my-4">📖 Éditeur de Livre</h2>
 
-<MessagesList />
+<div class="container">
+    <div class="mb-3">
+        <InputFile OnChange="HandleFileSelected" class="form-control" />
+    </div>
+    <p class="text-muted">📂 Fichier sélectionné : <strong>@fileName</strong></p>
 
+    @if (messages.Any())
+    {
+        <div class="chat-container">
+            @foreach (var msg in messages)
+            {
+                <div class="message-wrapper @(msg.Expediteur == "nathan" ? "sent" : "received")">
+                    <div class="message-bubble">
+                        <div class="message-header">
+                            <strong>@msg.Expediteur</strong> <small>@msg.Heure</small>
+                        </div>
+                        <div class="message-content">
+                            @if (msg.EnEdition)
+                            {
+                                <input @bind="msg.ContenuTemporaire" class="form-control input-message" />
+                            }
+                            else
+                            {
+                                <span>@msg.Contenu</span>
+                            }
+                        </div>
+                    </div>
+
+                    <div class="message-actions text-center">
+                        @if (msg.EnEdition)
+                        {
+                            <button @onclick="() => SauvegarderEdition(msg)" class="btn btn-success btn-sm">💾 Sauvegarder</button>
+                            <button @onclick="() => AnnulerEdition(msg)" class="btn btn-warning btn-sm">↩️ Annuler</button>
+                        }
+                        else
+                        {
+                            <button @onclick="() => EditerMessage(msg)" class="btn btn-primary btn-sm">📝 Modifier</button>
+                            <button @onclick="() => SupprimerMessage(msg)" class="btn btn-danger btn-sm">❌ Supprimer</button>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+<style>
+    .chat-container {
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 20px;
+    }
+
+    .message-wrapper {
+        display: flex;
+        flex-direction: column;
+        margin-bottom: 15px;
+        max-width: 70%;
+    }
+
+    .message-wrapper.sent {
+        align-items: flex-end;
+        margin-left: auto;
+    }
+
+    .message-wrapper.received {
+        align-items: flex-start;
+        margin-right: auto;
+    }
+
+    .message-bubble {
+        position: relative;
+        padding: 10px 15px;
+        border-radius: 10px;
+        word-wrap: break-word;
+        max-width: 100%;
+    }
+
+    .message-wrapper.sent .message-bubble {
+        background-color: #DCF8C6; /* Vert clair comme WhatsApp pour les messages envoyés */
+    }
+
+    .message-wrapper.received .message-bubble {
+        background-color: #FFFFFF; /* Blanc pour les messages reçus */
+        border: 1px solid #E0E0E0;
+    }
+
+    /* Effet de "queue" */
+    .message-wrapper.sent .message-bubble::after {
+        content: '';
+        position: absolute;
+        bottom: 0;
+        right: -10px;
+        width: 10px;
+        height: 10px;
+        background-color: #DCF8C6;
+        clip-path: polygon(0 0, 100% 100%, 0 100%);
+    }
+
+    .message-wrapper.received .message-bubble::after {
+        content: '';
+        position: absolute;
+        bottom: 0;
+        left: -10px;
+        width: 10px;
+        height: 10px;
+        background-color: #FFFFFF;
+        border-bottom: 1px solid #E0E0E0;
+        border-left: 1px solid #E0E0E0;
+        clip-path: polygon(100% 0, 0 100%, 100% 100%);
+    }
+
+    .message-header {
+        font-size: 0.9em;
+        margin-bottom: 5px;
+    }
+
+    .message-header small {
+        color: #888;
+        margin-left: 10px;
+    }
+
+    .message-content {
+        font-size: 1em;
+    }
+
+    .message-actions {
+        margin-top: 5px;
+    }
+
+    .input-message {
+        width: 100%;
+    }
+</style>
+
+@code {
+    private string fileName = "";
+    private List<Message> messages = new();
+
+    private async Task HandleFileSelected(InputFileChangeEventArgs e)
+    {
+        var file = e.File;
+        fileName = file.Name;
+        await ExtractZipAsync(file);
+    }
+
+    private async Task ExtractZipAsync(IBrowserFile file)
+    {
+        try
+        {
+            using var memoryStream = new MemoryStream();
+            await file.OpenReadStream().CopyToAsync(memoryStream);
+            memoryStream.Seek(0, SeekOrigin.Begin);
+
+            using var archive = new System.IO.Compression.ZipArchive(memoryStream, System.IO.Compression.ZipArchiveMode.Read);
+            var chatEntry = archive.Entries.FirstOrDefault(e => e.Name == "_chat.txt");
+
+            if (chatEntry != null)
+            {
+                using var reader = new StreamReader(chatEntry.Open());
+                var content = await reader.ReadToEndAsync();
+                messages = content
+                    .Split('\n')
+                    .Where(line => !string.IsNullOrWhiteSpace(line))
+                    .Select(ParseMessage)
+                    .Where(msg => msg != null)
+                    .ToList()!;
+            }
+            else
+            {
+                messages = new() { new Message { Contenu = "❌ Erreur : _chat.txt non trouvé dans l'archive." } };
+            }
+        }
+        catch (Exception ex)
+        {
+            messages = new() { new Message { Contenu = $"❌ Erreur lors de l'extraction : {ex.Message}" } };
+        }
+    }
+
+    private Message? ParseMessage(string line)
+    {
+        try
+        {
+            var pattern = @"\[(\d{1,2}/\d{1,2}/\d{2}) (\d{1,2}:\d{2}:\d{2})\] (.+?): (.+)";
+            var match = System.Text.RegularExpressions.Regex.Match(line, pattern);
+
+            if (match.Success)
+            {
+                return new Message
+                    {
+                        Date = match.Groups[1].Value,
+                        Heure = match.Groups[2].Value,
+                        Expediteur = match.Groups[3].Value,
+                        Contenu = match.Groups[4].Value,
+                        ContenuTemporaire = match.Groups[4].Value
+                    };
+            }
+        }
+        catch { }
+        return null;
+    }
+
+    private void EditerMessage(Message msg)
+    {
+        msg.EnEdition = true;
+        msg.ContenuTemporaire = msg.Contenu;
+    }
+
+    private void SauvegarderEdition(Message msg)
+    {
+        msg.Contenu = msg.ContenuTemporaire;
+        msg.EnEdition = false;
+    }
+
+    private void AnnulerEdition(Message msg)
+    {
+        msg.ContenuTemporaire = msg.Contenu;
+        msg.EnEdition = false;
+    }
+
+    private void SupprimerMessage(Message msg)
+    {
+        messages.Remove(msg);
+    }
+
+    private class Message
+    {
+        public string Date { get; set; } = "";
+        public string Heure { get; set; } = "";
+        public string Expediteur { get; set; } = "";
+        public string Contenu { get; set; } = "";
+        public string ContenuTemporaire { get; set; } = "";
+        public bool EnEdition { get; set; } = false;
+    }
+}

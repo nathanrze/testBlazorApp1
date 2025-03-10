@@ -1,55 +1,60 @@
-﻿@page "/Libros"
+﻿@page "/Libro"
 
-<h2>Éditeur de Livre</h2>
+<h2 class="text-center my-4">📖 Éditeur de Livre</h2>
 
-<InputFile OnChange="HandleFileSelected" />
-<p>Fichier sélectionné : @fileName</p>
+<div class="container">
+    <div class="mb-3">
+        <InputFile OnChange="HandleFileSelected" class="form-control" />
+    </div>
+    <p class="text-muted">📂 Fichier sélectionné : <strong>@fileName</strong></p>
 
-@if (messages.Any())
-{
-    <table>
-        <thead>
-            <tr>
-                <th>Date</th>
-                <th>Heure</th>
-                <th>Expéditeur</th>
-                <th>Message</th>
-                <th>Actions</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach (var msg in messages)
-            {
+    @if (messages.Any())
+    {
+        <table class="table table-striped table-hover">
+            <thead class="table-dark">
                 <tr>
-                    <td>@msg.Date</td>
-                    <td>@msg.Heure</td>
-                    <td>@msg.Expediteur</td>
-                    <td>
-                        @if (msg.EnEdition)
-                        {
-                            <input @bind="msg.Contenu" />
-                        }
-                        else
-                        {
-                            @msg.Contenu
-                        }
-                    </td>
-                    <td>
-                        @if (msg.EnEdition)
-                        {
-                            <button @onclick="() => SauvegarderEdition(msg)">💾 Sauvegarder</button>
-                        }
-                        else
-                        {
-                            <button @onclick="() => EditerMessage(msg)">📝 Modifier</button>
-                        }
-                        <button @onclick="() => SupprimerMessage(msg)">❌ Supprimer</button>
-                    </td>
+                    <th>Date</th>
+                    <th>Heure</th>
+                    <th>Expéditeur</th>
+                    <th>Message</th>
+                    <th>Actions</th>
                 </tr>
-            }
-        </tbody>
-    </table>
-}
+            </thead>
+            <tbody>
+                @foreach (var msg in messages)
+                {
+                    <tr>
+                        <td>@msg.Date</td>
+                        <td>@msg.Heure</td>
+                        <td><strong>@msg.Expediteur</strong></td>
+                        <td>
+                            @if (msg.EnEdition)
+                            {
+                                <input @bind="msg.ContenuTemporaire" class="form-control" />
+                            }
+                            else
+                            {
+                                <span class="text-break">@msg.Contenu</span>
+                            }
+                        </td>
+                        <td class="text-center">
+                            @if (msg.EnEdition)
+                            {
+                                <button @onclick="() => SauvegarderEdition(msg)" class="btn btn-success btn-sm">💾 Sauvegarder</button>
+                                <button @onclick="() => AnnulerEdition(msg)" class="btn btn-warning btn-sm">↩️ Annuler</button>
+                            }
+                            else
+                            {
+                                <button @onclick="() => EditerMessage(msg)" class="btn btn-primary btn-sm">📝 Modifier</button>
+                                <button @onclick="() => SupprimerMessage(msg)" class="btn btn-danger btn-sm">❌ Supprimer</button>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</div>
 
 @code {
     private string fileName = "";
@@ -86,12 +91,12 @@
             }
             else
             {
-                messages = new() { new Message { Contenu = "Erreur : _chat.txt non trouvé dans l'archive." } };
+                messages = new() { new Message { Contenu = "❌ Erreur : _chat.txt non trouvé dans l'archive." } };
             }
         }
         catch (Exception ex)
         {
-            messages = new() { new Message { Contenu = $"Erreur lors de l'extraction : {ex.Message}" } };
+            messages = new() { new Message { Contenu = $"❌ Erreur lors de l'extraction : {ex.Message}" } };
         }
     }
 
@@ -109,7 +114,8 @@
                         Date = match.Groups[1].Value,
                         Heure = match.Groups[2].Value,
                         Expediteur = match.Groups[3].Value,
-                        Contenu = match.Groups[4].Value
+                        Contenu = match.Groups[4].Value,
+                        ContenuTemporaire = match.Groups[4].Value
                     };
             }
         }
@@ -120,10 +126,18 @@
     private void EditerMessage(Message msg)
     {
         msg.EnEdition = true;
+        msg.ContenuTemporaire = msg.Contenu;
     }
 
     private void SauvegarderEdition(Message msg)
     {
+        msg.Contenu = msg.ContenuTemporaire;
+        msg.EnEdition = false;
+    }
+
+    private void AnnulerEdition(Message msg)
+    {
+        msg.ContenuTemporaire = msg.Contenu;
         msg.EnEdition = false;
     }
 
@@ -138,6 +152,7 @@
         public string Heure { get; set; } = "";
         public string Expediteur { get; set; } = "";
         public string Contenu { get; set; } = "";
+        public string ContenuTemporaire { get; set; } = "";
         public bool EnEdition { get; set; } = false;
     }
 }
