@@ -1,58 +1,58 @@
 ﻿@page "/Libros"
 
-<h2 class="text-center my-4">📖 Éditeur de Livre</h2>
+<h2 class="text-center my-4">📖 Editor de Libro</h2>
 
 <div class="container">
-    <!-- Liste déroulante pour choisir un nom -->
+    <!-- Lista desplegable para elegir un nombre -->
     <div class="mb-3">
-        <label for="userName">Choisissez votre nom :</label>
-        <select id="userName" @bind="selectedUserName" class="form-control">
-            <option value="">Sélectionnez un nom</option>
-            @foreach (var name in uniqueSenders)
+        <label for="userName">Elija su nombre:</label>
+        <select id="userName" @bind="nombreUsuarioSeleccionado" class="form-control">
+            <option value="">Seleccione un nombre</option>
+            @foreach (var nombre in remitentesUnicos)
             {
-                <option value="@name">@name</option>
+                <option value="@nombre">@nombre</option>
             }
         </select>
     </div>
 
-    <!-- Sélection de fichier -->
+    <!-- Selección de archivo -->
     <div class="mb-3">
-        <InputFile OnChange="HandleFileSelected" class="form-control" />
+        <InputFile OnChange="ManejarArchivoSeleccionado" class="form-control" />
     </div>
-    <p class="text-muted">📂 Fichier sélectionné : <strong>@fileName</strong></p>
+    <p class="text-muted">📂 Archivo seleccionado: <strong>@nombreArchivo</strong></p>
 
-    @if (messages.Any())
+    @if (mensajes.Any())
     {
         <div class="chat-container">
-            @foreach (var msg in messages)
+            @foreach (var mensaje in mensajes)
             {
-                <div class="message-wrapper @(msg.Expediteur == selectedUserName ? "sent" : "received")">
+                <div class="message-wrapper @(mensaje.Remitente == nombreUsuarioSeleccionado ? "sent" : "received")">
                     <div class="message-bubble">
                         <div class="message-header">
-                            <strong>@msg.Expediteur</strong> <small>@msg.Heure</small>
+                            <strong>@mensaje.Remitente</strong> <small>@mensaje.Hora</small>
                         </div>
                         <div class="message-content">
-                            @if (msg.EnEdition)
+                            @if (mensaje.EnEdicion)
                             {
-                                <input @bind="msg.ContenuTemporaire" class="form-control input-message" />
+                                <input @bind="mensaje.ContenidoTemporal" class="form-control input-message" />
                             }
                             else
                             {
-                                <span>@msg.Contenu</span>
+                                <span>@mensaje.Contenido</span>
                             }
                         </div>
                     </div>
 
                     <div class="message-actions text-center">
-                        @if (msg.EnEdition)
+                        @if (mensaje.EnEdicion)
                         {
-                            <button @onclick="() => SauvegarderEdition(msg)" class="btn btn-success btn-sm">💾 Sauvegarder</button>
-                            <button @onclick="() => AnnulerEdition(msg)" class="btn btn-warning btn-sm">↩️ Annuler</button>
+                            <button @onclick="() => GuardarEdicion(mensaje)" class="btn btn-success btn-sm">💾 Guardar</button>
+                            <button @onclick="() => CancelarEdicion(mensaje)" class="btn btn-warning btn-sm">↩️ Cancelar</button>
                         }
                         else
                         {
-                            <button @onclick="() => EditerMessage(msg)" class="btn btn-primary btn-sm">📝 Modifier</button>
-                            <button @onclick="() => SupprimerMessage(msg)" class="btn btn-danger btn-sm">❌ Supprimer</button>
+                            <button @onclick="() => EditarMensaje(mensaje)" class="btn btn-primary btn-sm">📝 Editar</button>
+                            <button @onclick="() => EliminarMensaje(mensaje)" class="btn btn-danger btn-sm">❌ Eliminar</button>
                         }
                     </div>
                 </div>
@@ -62,7 +62,7 @@
 </div>
 
 <style>
-    /* Styles inchangés */
+    /* Estilos sin cambios */
     .chat-container {
         max-width: 800px;
         margin: 0 auto;
@@ -95,15 +95,15 @@
     }
 
     .message-wrapper.sent .message-bubble {
-        background-color: #DCF8C6; /* Vert clair comme WhatsApp pour les messages envoyés */
+        background-color: #DCF8C6; /* Verde claro como WhatsApp para mensajes enviados */
     }
 
     .message-wrapper.received .message-bubble {
-        background-color: #FFFFFF; /* Blanc pour les messages reçus */
+        background-color: #FFFFFF; /* Blanco para mensajes recibidos */
         border: 1px solid #E0E0E0;
     }
 
-    /* Effet de "queue" */
+    /* Efecto de "cola" */
     .message-wrapper.sent .message-bubble::after {
         content: '';
         position: absolute;
@@ -140,24 +140,24 @@
 </style>
 
 @code {
-    private string fileName = "";
-    private List<Message> messages = new();
-    private HashSet<string> uniqueSenders = new(); // Pour stocker les noms uniques des expéditeurs
-    private string selectedUserName = ""; // Nom sélectionné par l'utilisateur
+    private string nombreArchivo = "";
+    private List<Mensaje> mensajes = new();
+    private HashSet<string> remitentesUnicos = new(); // Para almacenar los nombres únicos de los remitentes
+    private string nombreUsuarioSeleccionado = ""; // Nombre seleccionado por el usuario
 
-    private async Task HandleFileSelected(InputFileChangeEventArgs e)
+    private async Task ManejarArchivoSeleccionado(InputFileChangeEventArgs e)
     {
-        var file = e.File;
-        fileName = file.Name;
-        await ExtractZipAsync(file);
+        var archivo = e.File;
+        nombreArchivo = archivo.Name;
+        await ExtraerZipAsync(archivo);
     }
 
-    private async Task ExtractZipAsync(IBrowserFile file)
+    private async Task ExtraerZipAsync(IBrowserFile archivo)
     {
         try
         {
             using var memoryStream = new MemoryStream();
-            await file.OpenReadStream().CopyToAsync(memoryStream);
+            await archivo.OpenReadStream().CopyToAsync(memoryStream);
             memoryStream.Seek(0, SeekOrigin.Begin);
 
             using var archive = new System.IO.Compression.ZipArchive(memoryStream, System.IO.Compression.ZipArchiveMode.Read);
@@ -166,44 +166,44 @@
             if (chatEntry != null)
             {
                 using var reader = new StreamReader(chatEntry.Open());
-                var content = await reader.ReadToEndAsync();
-                messages = content
+                var contenido = await reader.ReadToEndAsync();
+                mensajes = contenido
                     .Split('\n')
                     .Where(line => !string.IsNullOrWhiteSpace(line))
-                    .Select(ParseMessage)
-                    .Where(msg => msg != null)
+                    .Select(ParsearMensaje)
+                    .Where(mensaje => mensaje != null)
                     .ToList()!;
 
-                // Extraire les noms uniques des expéditeurs
-                uniqueSenders = new HashSet<string>(messages.Select(m => m.Expediteur));
+                // Extraer los nombres únicos de los remitentes
+                remitentesUnicos = new HashSet<string>(mensajes.Select(m => m.Remitente));
             }
             else
             {
-                messages = new() { new Message { Contenu = "❌ Erreur : _chat.txt non trouvé dans l'archive." } };
+                mensajes = new() { new Mensaje { Contenido = "❌ Error: _chat.txt no encontrado en el archivo." } };
             }
         }
         catch (Exception ex)
         {
-            messages = new() { new Message { Contenu = $"❌ Erreur lors de l'extraction : {ex.Message}" } };
+            mensajes = new() { new Mensaje { Contenido = $"❌ Error al extraer: {ex.Message}" } };
         }
     }
 
-    private Message? ParseMessage(string line)
+    private Mensaje? ParsearMensaje(string linea)
     {
         try
         {
             var pattern = @"\[(\d{1,2}/\d{1,2}/\d{2}) (\d{1,2}:\d{2}:\d{2})\] (.+?): (.+)";
-            var match = System.Text.RegularExpressions.Regex.Match(line, pattern);
+            var match = System.Text.RegularExpressions.Regex.Match(linea, pattern);
 
             if (match.Success)
             {
-                return new Message
+                return new Mensaje
                     {
-                        Date = match.Groups[1].Value,
-                        Heure = match.Groups[2].Value,
-                        Expediteur = match.Groups[3].Value,
-                        Contenu = match.Groups[4].Value,
-                        ContenuTemporaire = match.Groups[4].Value
+                        Fecha = match.Groups[1].Value,
+                        Hora = match.Groups[2].Value,
+                        Remitente = match.Groups[3].Value,
+                        Contenido = match.Groups[4].Value,
+                        ContenidoTemporal = match.Groups[4].Value
                     };
             }
         }
@@ -211,36 +211,36 @@
         return null;
     }
 
-    private void EditerMessage(Message msg)
+    private void EditarMensaje(Mensaje mensaje)
     {
-        msg.EnEdition = true;
-        msg.ContenuTemporaire = msg.Contenu;
+        mensaje.EnEdicion = true;
+        mensaje.ContenidoTemporal = mensaje.Contenido;
     }
 
-    private void SauvegarderEdition(Message msg)
+    private void GuardarEdicion(Mensaje mensaje)
     {
-        msg.Contenu = msg.ContenuTemporaire;
-        msg.EnEdition = false;
+        mensaje.Contenido = mensaje.ContenidoTemporal;
+        mensaje.EnEdicion = false;
     }
 
-    private void AnnulerEdition(Message msg)
+    private void CancelarEdicion(Mensaje mensaje)
     {
-        msg.ContenuTemporaire = msg.Contenu;
-        msg.EnEdition = false;
+        mensaje.ContenidoTemporal = mensaje.Contenido;
+        mensaje.EnEdicion = false;
     }
 
-    private void SupprimerMessage(Message msg)
+    private void EliminarMensaje(Mensaje mensaje)
     {
-        messages.Remove(msg);
+        mensajes.Remove(mensaje);
     }
 
-    private class Message
+    private class Mensaje
     {
-        public string Date { get; set; } = "";
-        public string Heure { get; set; } = "";
-        public string Expediteur { get; set; } = "";
-        public string Contenu { get; set; } = "";
-        public string ContenuTemporaire { get; set; } = "";
-        public bool EnEdition { get; set; } = false;
+        public string Fecha { get; set; } = "";
+        public string Hora { get; set; } = "";
+        public string Remitente { get; set; } = "";
+        public string Contenido { get; set; } = "";
+        public string ContenidoTemporal { get; set; } = "";
+        public bool EnEdicion { get; set; } = false;
     }
 }
