@@ -3,6 +3,19 @@
 <h2 class="text-center my-4">📖 Éditeur de Livre</h2>
 
 <div class="container">
+    <!-- Liste déroulante pour choisir un nom -->
+    <div class="mb-3">
+        <label for="userName">Choisissez votre nom :</label>
+        <select id="userName" @bind="selectedUserName" class="form-control">
+            <option value="">Sélectionnez un nom</option>
+            @foreach (var name in uniqueSenders)
+            {
+                <option value="@name">@name</option>
+            }
+        </select>
+    </div>
+
+    <!-- Sélection de fichier -->
     <div class="mb-3">
         <InputFile OnChange="HandleFileSelected" class="form-control" />
     </div>
@@ -13,7 +26,7 @@
         <div class="chat-container">
             @foreach (var msg in messages)
             {
-                <div class="message-wrapper @(msg.Expediteur == "nathan" ? "sent" : "received")">
+                <div class="message-wrapper @(msg.Expediteur == selectedUserName ? "sent" : "received")">
                     <div class="message-bubble">
                         <div class="message-header">
                             <strong>@msg.Expediteur</strong> <small>@msg.Heure</small>
@@ -49,6 +62,7 @@
 </div>
 
 <style>
+    /* Styles inchangés */
     .chat-container {
         max-width: 800px;
         margin: 0 auto;
@@ -62,15 +76,15 @@
         max-width: 70%;
     }
 
-    .message-wrapper.sent {
-        align-items: flex-end;
-        margin-left: auto;
-    }
+        .message-wrapper.sent {
+            align-items: flex-end;
+            margin-left: auto;
+        }
 
-    .message-wrapper.received {
-        align-items: flex-start;
-        margin-right: auto;
-    }
+        .message-wrapper.received {
+            align-items: flex-start;
+            margin-right: auto;
+        }
 
     .message-bubble {
         position: relative;
@@ -119,27 +133,17 @@
         margin-bottom: 5px;
     }
 
-    .message-header small {
-        color: #888;
-        margin-left: 10px;
-    }
-
-    .message-content {
-        font-size: 1em;
-    }
-
-    .message-actions {
-        margin-top: 5px;
-    }
-
-    .input-message {
-        width: 100%;
-    }
+        .message-header small {
+            color: #888;
+            margin-left: 10px;
+        }
 </style>
 
 @code {
     private string fileName = "";
     private List<Message> messages = new();
+    private HashSet<string> uniqueSenders = new(); // Pour stocker les noms uniques des expéditeurs
+    private string selectedUserName = ""; // Nom sélectionné par l'utilisateur
 
     private async Task HandleFileSelected(InputFileChangeEventArgs e)
     {
@@ -169,6 +173,9 @@
                     .Select(ParseMessage)
                     .Where(msg => msg != null)
                     .ToList()!;
+
+                // Extraire les noms uniques des expéditeurs
+                uniqueSenders = new HashSet<string>(messages.Select(m => m.Expediteur));
             }
             else
             {
